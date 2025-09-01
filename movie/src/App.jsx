@@ -158,11 +158,11 @@ const App = () => {
 
                         <ul>
                             {trendingMovies.map((movie, index) => {
-                                const targetId = movie.movie_id ?? movie.$id ?? movie.title;
+                                const targetId = movie.movie_id ?? movie.$id ?? movie.id;
                                 return (
                                     <li key={movie.$id || movie.movie_id || index}>
                                         <p>{index + 1}</p>
-                                        <Link to={`/movie/${encodeURIComponent(targetId)}`}>
+                                        <Link to={`/movie/${targetId}`}>
                                             <img src={movie.poster_url} alt={movie.title || 'Trending movie'} />
                                         </Link>
                                     </li>
