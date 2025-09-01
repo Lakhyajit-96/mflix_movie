@@ -303,6 +303,58 @@ const MovieDetails = () => {
               </div>
             </div>
           </div>
+
+          {/* Movie Details Section */}
+          <div className="mt-8">
+            <h3 className="text-lg font-semibold text-white mb-4">Details</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Release Date</span>
+                  <span className="text-white">{details.release_date ? new Date(details.release_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}</span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Status</span>
+                  <span className="text-white">{details.status || 'N/A'}</span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Language</span>
+                  <span className="text-white">{details.original_language ? details.original_language.toUpperCase() : 'N/A'}</span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Budget</span>
+                  <span className="text-white">{formatCurrency(details.budget)}</span>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Revenue</span>
+                  <span className="text-white">{formatCurrency(details.revenue)}</span>
+                </div>
+
+                {details.tagline && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Tagline</span>
+                    <span className="text-white italic">"{details.tagline}"</span>
+                  </div>
+                )}
+
+                {details.production_companies && details.production_companies.length > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Production</span>
+                    <span className="text-white text-right max-w-[200px]">
+                      {details.production_companies.slice(0, 3).map(company => company.name).join(' • ')}
+                      {details.production_companies.length > 3 && '...'}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </main>
