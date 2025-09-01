@@ -1,8 +1,7 @@
 {
-  "rootDirectory": "movie",
-  "buildCommand": "npm run build",
+  "buildCommand": "cd movie && npm run build",
   "outputDirectory": "movie/dist",
-  "installCommand": "npm install",
+  "installCommand": "cd movie && npm install",
   "rewrites": [
     {
       "source": "/(.*)",
