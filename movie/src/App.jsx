@@ -36,6 +36,13 @@ const App = () => {
         setIsLoading(true);
         setErrorMessage('');
 
+        // Check if API key is available
+        if (!API_KEY) {
+            setErrorMessage('TMDB API key is not configured. Please check your environment variables.');
+            setIsLoading(false);
+            return;
+        }
+
         try {
             let endpoint;
             
@@ -61,7 +68,7 @@ const App = () => {
             const response = await fetch(endpoint, API_OPTIONS);
 
             if(!response.ok) {
-                throw new Error('Failed to fetch movies');
+                throw new Error(`Failed to fetch movies: ${response.status} ${response.statusText}`);
             }
 
             const data = await response.json();
@@ -77,7 +84,12 @@ const App = () => {
             setMovieList(shuffledResults);
 
             if(query && data.results.length > 0) {
-                await updateSearchCount(query, data.results[0]);
+                try {
+                    await updateSearchCount(query, data.results[0]);
+                } catch (appwriteError) {
+                    // Appwrite is optional, so we ignore errors here
+                    console.log('Appwrite not configured, skipping search count update');
+                }
             }
         } catch (error) {
             console.error(`Error fetching movies: ${error}`);
@@ -98,6 +110,11 @@ const App = () => {
             }
 
             // Fallback: fetch TMDB trending if Appwrite is not configured or empty
+            if (!API_KEY) {
+                console.log('TMDB API key not available, skipping trending movies');
+                return;
+            }
+
             const response = await fetch(`${API_BASE_URL}/trending/movie/day?language=en-US`, API_OPTIONS);
 
             if (response.ok) {
@@ -161,7 +178,15 @@ const App = () => {
                     {isLoading ? (
                         <Spinner />
                     ) : errorMessage ? (
-                        <p className="text-red-500">{errorMessage}</p>
+                        <div className="text-center py-8">
+                            <p className="text-red-500 mb-4">{errorMessage}</p>
+                            <button 
+                                onClick={() => fetchMovies(debouncedSearchTerm)}
+                                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors"
+                            >
+                                Try Again
+                            </button>
+                        </div>
                     ) : (
                         <ul>
                             {movieList.map((movie) => (

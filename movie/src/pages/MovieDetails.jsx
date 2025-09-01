@@ -1,368 +1,302 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import WatchButton from '../components/WatchButton'
-import HomepageButton from '../components/HomepageButton'
-
-const API_BASE_URL = 'https://api.themoviedb.org/3';
-const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
-
-const API_OPTIONS = {
-    method: 'GET',
-    headers: {
-        accept: 'application/json',
-        Authorization: `Bearer ${API_KEY}`
-    }
-}
+import React, { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import WatchButton from '../components/WatchButton';
+import HomepageButton from '../components/HomepageButton';
 
 const MovieDetails = () => {
-    const { id } = useParams();
-    const navigate = useNavigate();
+  const { id } = useParams();
+  const [details, setDetails] = useState(null);
+  const [trailer, setTrailer] = useState(null);
+  const [showVideo, setShowVideo] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-    const [isLoading, setIsLoading] = useState(true);
-    const [errorMessage, setErrorMessage] = useState('');
-    const [details, setDetails] = useState(null);
-    const [videos, setVideos] = useState([]);
-    const [showVideo, setShowVideo] = useState(false);
+  const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY;
+  const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 
-    useEffect(() => {
-        let isCancelled = false;
-
-        const load = async () => {
-            setIsLoading(true);
-            setErrorMessage('');
-
-            try {
-                let movieId = id;
-                if (!/^\d+$/.test(id)) {
-                    const searchResp = await fetch(`${API_BASE_URL}/search/movie?query=${encodeURIComponent(id)}`, API_OPTIONS);
-                    if (searchResp.ok) {
-                        const data = await searchResp.json();
-                        if (data.results && data.results.length > 0) {
-                            movieId = String(data.results[0].id);
-                        }
-                    }
-                }
-
-                const [detailsResp, videosResp] = await Promise.all([
-                    fetch(`${API_BASE_URL}/movie/${movieId}`, API_OPTIONS),
-                    fetch(`${API_BASE_URL}/movie/${movieId}/videos`, API_OPTIONS),
-                ]);
-
-                if (!detailsResp.ok) throw new Error('Failed to fetch movie details');
-
-                const detailsJson = await detailsResp.json();
-                let videosJson = { results: [] };
-                if (videosResp.ok) videosJson = await videosResp.json();
-
-                if (!isCancelled) {
-                    setDetails(detailsJson);
-                    setVideos(videosJson.results || []);
-                }
-            } catch (e) {
-                if (!isCancelled) setErrorMessage('Could not load movie details.');
-            } finally {
-                if (!isCancelled) setIsLoading(false);
-            }
-        }
-
-        load();
-        return () => { isCancelled = true };
-    }, [id]);
-
-    const youtubeTrailer = useMemo(() => {
-        return videos.find(v => v.site === 'YouTube' && v.type === 'Trailer');
-    }, [videos]);
-
-    const formatRuntime = (minutes) => {
-        if (!minutes) return 'N/A';
-        const hours = Math.floor(minutes / 60);
-        const mins = minutes % 60;
-        return `${hours}h ${mins}m`;
-    };
-
-    const formatCurrency = (amount) => {
-        if (!amount) return 'N/A';
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD',
-            minimumFractionDigits: 1,
-            maximumFractionDigits: 1,
-        }).format(amount / 1000000) + 'M';
-    };
-
-    if (isLoading) {
-        return (
-            <main>
-                <div className="wrapper">
-                    <div className="flex items-center justify-center min-h-[400px]">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
-                    </div>
-                </div>
-            </main>
-        )
+  useEffect(() => {
+    if (!TMDB_API_KEY) {
+      setError('TMDB API key is not configured. Please check your environment variables.');
+      setLoading(false);
+      return;
     }
+    
+    fetchMovieDetails();
+    fetchTrailer();
+  }, [id, TMDB_API_KEY]);
 
-    if (errorMessage || !details) {
-        return (
-            <main>
-                <div className="wrapper">
-                    <button 
-                        className="text-gray-200 hover:text-white transition-colors mb-6" 
-                        onClick={() => navigate(-1)}
-                    >
-                        &larr; Back
-                    </button>
-                    <p className="text-red-500 mt-4">{errorMessage || 'Not found'}</p>
-                </div>
-            </main>
-        )
+  const fetchMovieDetails = async () => {
+    try {
+      const response = await fetch(
+        `${TMDB_BASE_URL}/movie/${id}?api_key=${TMDB_API_KEY}&append_to_response=videos,credits`
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch movie details: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      setDetails(data);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching movie details:', error);
+      setError('Failed to load movie details. Please try again later.');
+      setLoading(false);
     }
+  };
 
+  const fetchTrailer = async () => {
+    try {
+      const response = await fetch(
+        `${TMDB_BASE_URL}/movie/${id}/videos?api_key=${TMDB_API_KEY}`
+      );
+      
+      if (!response.ok) {
+        console.log('Failed to fetch trailer, continuing without trailer');
+        return;
+      }
+      
+      const data = await response.json();
+      const trailerVideo = data.results.find(
+        video => video.type === 'Trailer' && video.site === 'YouTube'
+      );
+      setTrailer(trailerVideo);
+    } catch (error) {
+      console.error('Error fetching trailer:', error);
+    }
+  };
+
+  const formatRuntime = (minutes) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours}h ${mins}m`;
+  };
+
+  const formatCurrency = (amount) => {
+    if (!amount) return 'N/A';
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  if (loading) {
     return (
-        <main className="relative overflow-hidden min-h-screen bg-gradient-to-br from-[#0f0f1a] to-[#1a1a2e] flex items-center justify-center py-8">
-            
-            {/* Glowing border container */}
-            <div className="relative w-full max-w-4xl mx-auto p-[1px] rounded-2xl bg-gradient-to-r from-white/35 via-white/20 to-white/10 animate-border-shine">
-                <div className="relative bg-[#0d0d19] rounded-2xl p-6">
-                    
-                    <div className="relative z-10">
-                        <button
-                            className="text-gray-200 hover:text-white transition-colors mb-6" 
-                            onClick={() => navigate(-1)}
-                        >
-                            &larr; Back
-                        </button>
+      <div className="min-h-screen bg-gradient-to-br from-[#0f0f1a] to-[#1a1a2e] flex items-center justify-center">
+        <div className="text-white text-xl">Loading...</div>
+      </div>
+    );
+  }
 
-                                                 {/* Hero Section */}
-                         <div className="hero-section mb-8">
-                             {/* Title and Basic Info */}
-                             <div className="mb-6">
-                                <h1 className="text-4xl lg:text-5xl font-bold text-white mb-4">{details.title}</h1>
-                                
-                                <div className="flex flex-wrap items-center gap-4 text-gray-300 mb-4">
-                                    <span>{details.release_date?.split('-')[0] || 'N/A'}</span>
-                                    <span>•</span>
-                                    <span>{details.mpaa_rating || 'N/A'}</span>
-                                    <span>•</span>
-                                    <span>{formatRuntime(details.runtime)}</span>
-                                </div>
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#0f0f1a] to-[#1a1a2e] flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-500 text-xl mb-4">{error}</div>
+          <Link 
+            to="/"
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors"
+          >
+            Back to Home
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
-                                {/* Rating and Trending */}
-                                <div className="flex items-center gap-6">
-                                    <div className="flex items-center gap-2">
-                                        <img src="/star.svg" alt="Star" className="w-5 h-5" />
-                                        <span className="text-white font-semibold">
-                                            {details.vote_average ? details.vote_average.toFixed(1) : 'N/A'}/10
-                                        </span>
-                                        <span className="text-gray-400">
-                                            ({details.vote_count ? Math.floor(details.vote_count / 1000) + 'K' : 'N/A'})
-                                        </span>
-                                    </div>
-                                    
-                                    <div className="flex items-center gap-2 bg-purple-600/20 px-3 py-1 rounded-full">
-                                        <span className="text-purple-400">↗️</span>
-                                        <span className="text-purple-400 text-sm">Trending</span>
-                                    </div>
-                                </div>
-                            </div>
+  if (!details) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#0f0f1a] to-[#1a1a2e] flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-white text-xl mb-4">Movie not found</div>
+          <Link 
+            to="/"
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors"
+          >
+            Back to Home
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
-                                                         {/* Poster and Video Section */}
-                             <div className="flex flex-col lg:flex-row gap-6 items-start">
-                                {/* Movie Poster */}
-                                <div className="flex-shrink-0">
-                                    <img
-                                        src={details.poster_path ? `https://image.tmdb.org/t/p/w500/${details.poster_path}` : '/no-movie.png'}
-                                        alt={details.title}
-                                        className="w-64 h-96 object-cover rounded-lg shadow-2xl"
-                                    />
-                                </div>
+  return (
+    <main className="relative overflow-hidden min-h-screen bg-gradient-to-br from-[#0f0f1a] to-[#1a1a2e] flex items-center justify-center py-8">
+      {/* Shiny border container */}
+      <div className="max-w-4xl w-full p-[1px] bg-gradient-to-r from-white/35 via-white/20 to-white/10 rounded-2xl animate-border-shine">
+        {/* Inner content */}
+        <div className="bg-gradient-to-br from-[#0f0f1a] to-[#1a1a2e] rounded-2xl p-6">
+          {/* Back button */}
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 text-white/70 hover:text-white mb-6 transition-colors duration-200"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Movies
+          </Link>
 
-                                {/* Trailer */}
-                                {youtubeTrailer && (
-                                    <div className="flex-1">
-                                        <div className="w-full h-96 rounded-lg overflow-hidden shadow-2xl">
-                                            {showVideo ? (
-                                                <div className="relative w-full h-full">
-                                                    <iframe
-                                                        src={`https://www.youtube.com/embed/${youtubeTrailer.key}?autoplay=1&rel=0&modestbranding=1&showinfo=0&controls=1&enablejsapi=1`}
-                                                        title="Movie Trailer"
-                                                        className="w-full h-full"
-                                                        frameBorder="0"
-                                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                                        allowFullScreen
-                                                    />
-                                                    <button
-                                                        onClick={() => setShowVideo(false)}
-                                                        className="absolute top-2 right-2 bg-black/70 text-white p-2 rounded-full hover:bg-black/90 transition-colors"
-                                                    >
-                                                        ✕
-                                                    </button>
-                                                </div>
-                                            ) : (
-                                                <div 
-                                                    className="relative w-full h-full cursor-pointer group"
-                                                    onClick={() => setShowVideo(true)}
-                                                >
-                                                    <img
-                                                        src={`https://img.youtube.com/vi/${youtubeTrailer.key}/maxresdefault.jpg`}
-                                                        alt="Trailer thumbnail"
-                                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                                    />
-                                                    <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors"></div>
-                                                    <div className="absolute inset-0 flex items-center justify-center">
-                                                        <div className="bg-white/90 rounded-full p-6 group-hover:bg-white transition-colors group-hover:scale-110">
-                                                            <div className="w-0 h-0 border-l-[16px] border-l-purple-600 border-t-[12px] border-t-transparent border-b-[12px] border-b-transparent ml-1"></div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="absolute bottom-4 left-4 text-white">
-                                                        <div className="text-lg font-medium">Trailer</div>
-                                                        <div className="text-sm text-gray-300">Click to play</div>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Detailed Information */}
-                        <div className="details-section">
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                                {/* Left Column - Genres and Overview */}
-                                <div className="lg:col-span-2 space-y-6">
-                                    {/* Genres */}
-                                    {details.genres && details.genres.length > 0 && (
-                                        <div className="space-y-3">
-                                            <h3 className="text-lg font-semibold text-white">Genres</h3>
-                                            <div className="flex flex-wrap gap-2">
-                                                {details.genres.map((genre) => (
-                                                    <span 
-                                                        key={genre.id}
-                                                        className="bg-purple-600/20 text-purple-300 px-3 py-1 rounded-full text-sm hover:bg-purple-600/30 transition-colors cursor-pointer"
-                                                    >
-                                                        {genre.name}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Overview */}
-                                    {details.overview && (
-                                        <div className="space-y-3">
-                                            <h3 className="text-lg font-semibold text-white">Overview</h3>
-                                            <p className="text-gray-300 leading-relaxed">{details.overview}</p>
-                                            {details.homepage && (
-                                                <div className="mt-4">
-                                                    <HomepageButton href={details.homepage} />
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {/* Where to Watch */}
-                                    <div className="space-y-4">
-                                        <h3 className="text-lg font-semibold text-white">Where to Watch</h3>
-                                        
-                                        {/* Streaming Services */}
-                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                            <WatchButton
-                                                service="netflix"
-                                                href={`https://www.netflix.com/search?q=${encodeURIComponent(details.title)}`}
-                                            />
-                                            
-                                            <WatchButton
-                                                service="disney"
-                                                href={`https://www.disneyplus.com/search?q=${encodeURIComponent(details.title)}`}
-                                            />
-                                            
-                                            <WatchButton
-                                                service="prime"
-                                                href={`https://www.amazon.com/s?k=${encodeURIComponent(details.title + ' movie')}`}
-                                            />
-                                            
-                                            <WatchButton
-                                                service="hbo"
-                                                href={`https://play.hbomax.com/search?q=${encodeURIComponent(details.title)}`}
-                                            />
-                                        </div>
-                                        
-                                        {/* Rental/Purchase Options */}
-                                        <div className="pt-4 border-t border-gray-700/50">
-                                            <h4 className="text-md font-medium text-white mb-3">Rent or Buy</h4>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <WatchButton
-                                                    service="amazon"
-                                                    href={`https://www.amazon.com/s?k=${encodeURIComponent(details.title + ' movie rent')}`}
-                                                    className="text-xs px-3 py-2"
-                                                />
-                                                
-                                                <WatchButton
-                                                    service="googleplay"
-                                                    href={`https://play.google.com/store/search?q=${encodeURIComponent(details.title + ' movie')}`}
-                                                    className="text-xs px-3 py-2"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Right Column - Production Details */}
-                                <div className="space-y-6">
-                                    <h3 className="text-lg font-semibold text-white">Details</h3>
-                                    
-                                    <div className="space-y-4">
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-400">Release Date</span>
-                                            <span className="text-white">{details.release_date ? new Date(details.release_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}</span>
-                                        </div>
-
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-400">Status</span>
-                                            <span className="text-white">{details.status || 'N/A'}</span>
-                                        </div>
-
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-400">Language</span>
-                                            <span className="text-white">{details.original_language ? details.original_language.toUpperCase() : 'N/A'}</span>
-                                        </div>
-
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-400">Budget</span>
-                                            <span className="text-white">{formatCurrency(details.budget)}</span>
-                                        </div>
-
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-400">Revenue</span>
-                                            <span className="text-white">{formatCurrency(details.revenue)}</span>
-                                        </div>
-
-                                        {details.tagline && (
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-400">Tagline</span>
-                                                <span className="text-white italic">"{details.tagline}"</span>
-                                            </div>
-                                        )}
-
-                                        {details.production_companies && details.production_companies.length > 0 && (
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-400">Production</span>
-                                                <span className="text-white text-right max-w-[200px]">
-                                                    {details.production_companies.slice(0, 3).map(company => company.name).join(' • ')}
-                                                    {details.production_companies.length > 3 && '...'}
-                                                </span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+          {/* Hero Section */}
+          <div className="mb-8">
+            {/* Title and basic info */}
+            <div className="mb-6">
+              <h1 className="text-3xl font-bold text-white mb-2">{details.title}</h1>
+              <div className="flex flex-wrap items-center gap-4 text-white/70 text-sm">
+                <span>{new Date(details.release_date).getFullYear()}</span>
+                <span>•</span>
+                <span>{formatRuntime(details.runtime)}</span>
+                <span>•</span>
+                <span className="flex items-center gap-1">
+                  <img src="/star.svg" alt="Rating" className="w-4 h-4" />
+                  {details.vote_average.toFixed(1)}
+                </span>
+                {details.budget > 0 && (
+                  <>
+                    <span>•</span>
+                    <span>Budget: {formatCurrency(details.budget)}</span>
+                  </>
+                )}
+              </div>
             </div>
-        </main>
-    )
-}
 
-export default MovieDetails
+            {/* Poster and Video/Info */}
+            <div className="flex flex-col lg:flex-row gap-6">
+              {/* Poster */}
+              <div className="flex-shrink-0">
+                <img
+                  src={`https://image.tmdb.org/t/p/w500${details.poster_path}`}
+                  alt={details.title}
+                  className="w-64 h-96 object-cover rounded-lg shadow-lg"
+                />
+              </div>
+
+              {/* Video or Info */}
+              <div className="flex-1">
+                {showVideo && trailer ? (
+                  <div className="relative w-full h-96 rounded-lg overflow-hidden">
+                    <iframe
+                      src={`https://www.youtube.com/embed/${trailer.key}?autoplay=1&rel=0&modestbranding=1&showinfo=0&controls=1&enablejsapi=1`}
+                      title="Movie Trailer"
+                      className="w-full h-full"
+                      frameBorder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                    <button
+                      onClick={() => setShowVideo(false)}
+                      className="absolute top-4 right-4 bg-black/70 text-white p-2 rounded-full hover:bg-black/90 transition-colors duration-200"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="w-full h-96 bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg flex items-center justify-center relative overflow-hidden">
+                    {trailer ? (
+                      <>
+                        <img
+                          src={`https://img.youtube.com/vi/${trailer.key}/maxresdefault.jpg`}
+                          alt="Trailer Thumbnail"
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                          <button
+                            onClick={() => setShowVideo(true)}
+                            className="bg-red-600 hover:bg-red-700 text-white p-4 rounded-full transition-colors duration-200"
+                          >
+                            <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M8 5v14l11-7z" />
+                            </svg>
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-white/50 text-center">
+                        <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                        <p>No trailer available</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Overview */}
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold text-white mb-3">Overview</h2>
+            <p className="text-white/80 leading-relaxed">{details.overview}</p>
+          </div>
+
+          {/* Visit Homepage Button */}
+          {details.homepage && (
+            <div className="mb-8">
+              <HomepageButton href={details.homepage} />
+            </div>
+          )}
+
+          {/* Where to Watch Section */}
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold text-white mb-4">Where to Watch</h2>
+            
+            {/* Streaming Services */}
+            <div className="mb-6">
+              <h3 className="text-lg font-medium text-white/80 mb-3">Streaming Services</h3>
+              <div className="flex flex-wrap gap-3">
+                <WatchButton href="https://www.netflix.com" service="netflix" />
+                <WatchButton href="https://www.disneyplus.com" service="disney" />
+                <WatchButton href="https://www.primevideo.com" service="prime" />
+                <WatchButton href="https://www.max.com" service="hbo" />
+              </div>
+            </div>
+
+            {/* Rent or Buy */}
+            <div>
+              <h3 className="text-lg font-medium text-white/80 mb-3">Rent or Buy</h3>
+              <div className="flex flex-wrap gap-3">
+                <WatchButton href="https://www.amazon.com" service="amazon" />
+                <WatchButton href="https://play.google.com" service="googleplay" />
+              </div>
+            </div>
+          </div>
+
+          {/* Additional Details */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <h3 className="text-lg font-semibold text-white mb-3">Genres</h3>
+              <div className="flex flex-wrap gap-2">
+                {details.genres.map((genre) => (
+                  <span
+                    key={genre.id}
+                    className="px-3 py-1 bg-white/10 text-white rounded-full text-sm"
+                  >
+                    {genre.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-lg font-semibold text-white mb-3">Production Companies</h3>
+              <div className="space-y-2">
+                {details.production_companies.slice(0, 3).map((company) => (
+                  <div key={company.id} className="text-white/80 text-sm">
+                    {company.name}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+};
+
+export default MovieDetails;
