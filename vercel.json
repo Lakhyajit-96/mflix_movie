@@ -1,0 +1,12 @@
+{
+  "rootDirectory": "movie",
+  "buildCommand": "npm run build",
+  "outputDirectory": "movie/dist",
+  "installCommand": "npm install",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

@@ -37,9 +37,26 @@ const App = () => {
         setErrorMessage('');
 
         try {
-            const endpoint = query
-                ? `${API_BASE_URL}/search/movie?query=${encodeURIComponent(query)}`
-                : `${API_BASE_URL}/discover/movie?sort_by=popularity.desc`;
+            let endpoint;
+            
+            if (query) {
+                // Search movies
+                endpoint = `${API_BASE_URL}/search/movie?query=${encodeURIComponent(query)}`;
+            } else {
+                // Get different movies on each refresh by randomizing the page and sort criteria
+                const sortOptions = [
+                    'popularity.desc',
+                    'vote_average.desc',
+                    'release_date.desc',
+                    'vote_count.desc',
+                    'revenue.desc'
+                ];
+                
+                const randomSort = sortOptions[Math.floor(Math.random() * sortOptions.length)];
+                const randomPage = Math.floor(Math.random() * 5) + 1; // Random page 1-5
+                
+                endpoint = `${API_BASE_URL}/discover/movie?sort_by=${randomSort}&page=${randomPage}&include_adult=false&include_video=false&language=en-US`;
+            }
 
             const response = await fetch(endpoint, API_OPTIONS);
 
@@ -55,7 +72,9 @@ const App = () => {
                 return;
             }
 
-            setMovieList(data.results || []);
+            // Shuffle the results for even more variety
+            const shuffledResults = data.results ? [...data.results].sort(() => Math.random() - 0.5) : [];
+            setMovieList(shuffledResults);
 
             if(query && data.results.length > 0) {
                 await updateSearchCount(query, data.results[0]);
