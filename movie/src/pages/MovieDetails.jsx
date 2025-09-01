@@ -14,6 +14,14 @@ const MovieDetails = () => {
   const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY;
   const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 
+  const API_OPTIONS = {
+    method: 'GET',
+    headers: {
+      accept: 'application/json',
+      Authorization: `Bearer ${TMDB_API_KEY}`
+    }
+  };
+
   useEffect(() => {
     if (!TMDB_API_KEY) {
       setError('TMDB API key is not configured. Please check your environment variables.');
@@ -28,7 +36,8 @@ const MovieDetails = () => {
   const fetchMovieDetails = async () => {
     try {
       const response = await fetch(
-        `${TMDB_BASE_URL}/movie/${id}?api_key=${TMDB_API_KEY}&append_to_response=videos,credits`
+        `${TMDB_BASE_URL}/movie/${id}?append_to_response=videos,credits`,
+        API_OPTIONS
       );
       
       if (!response.ok) {
@@ -48,7 +57,8 @@ const MovieDetails = () => {
   const fetchTrailer = async () => {
     try {
       const response = await fetch(
-        `${TMDB_BASE_URL}/movie/${id}/videos?api_key=${TMDB_API_KEY}`
+        `${TMDB_BASE_URL}/movie/${id}/videos`,
+        API_OPTIONS
       );
       
       if (!response.ok) {
